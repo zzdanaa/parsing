@@ -1,66 +1,31 @@
-import requests as rq
-from bs4 import BeautifulSoup as bs
-import csv
+import requests
+import random
+import telebot
+from bs4 import BeautifulSoup as bs4
 
+url = 'https://www.anekdot.ru/last/good/'
+API_KEY = '6818712736:AAH-m0OiG7GB_H8UjgAv8DalU3d6lNzk3f4'
+def parser(url):
+    r = requests.get(url)
+    soup = bs4(r.text,'html.parser')
+    anekdots = soup.find_all('div', class_='text')
+    return [c.text for c in anekdots]
 
-def get_html(url):
-    response = rq.get(url)
-    return response.text
+list_of_jokes = parser(url)
+random.shuffle(list_of_jokes)
 
-def get_total_page(html):
-    soup = bs(html,'lxml')
-    page = soup.find_all('a',class_='page-link')[-2].get('href') 
-    url = 'https://www.mashina.kg' + page
-    return url
+bot = telebot.TeleBot(API_KEY)
+@bot.message_handler(commands=['GO'])
 
-def get_data(html):
-    soup = bs(html,'lxml')
-    cars = soup.find('div',class_='table-view-list').find_all('div',class_='list-item')
+def hello(message):
+    bot.send_message(message.chat.id,'Hi! welcome to the joke! Enter any number:')
 
-    for car in cars:
-        title = car.find('h2',class_='name').text.strip()
-        price = car.find('strong').text.replace(' ','').replace('\n','')
-        img = car.find('img').get('src')
-        desc_url = car.find('a').get('href')
-        desc_url = 'https://www.mashina.kg' + desc_url
-        description = get_description(desc_url)
-        
-        data = {
-            'title':title,
-            'price':price,
-            'img':img,
-            'description': description
-        }
+@bot.message_handler(content_types=['text'])  
+def jokes(message):
+    if message.text.lower() in '123456789':
+        bot.send_message(message.chat.id, list_of_jokes[0])
+        del list_of_jokes[0]
+    else:
+        bot.send_message(message.chat.id,'Enter any number:')
 
-        to_file(data)
-
-def get_description(url):
-    html = get_html(url)
-    soup = bs(html,'lxml')
-    description = soup.find('p',class_='comment').text
-    return description
-
-def to_file(data):
-    with open('result.csv','a') as file:
-        writer = csv.writer(file)
-        writer.writerow([data['title'],data['price'],data['img'],data['description']])
-
-def main():
-    url ='https://www.mashina.kg/search/all/?page=1'
-    html = get_html(url)
-    get_data(html)
-    while True:
-        try:
-            url = get_total_page(html)
-            html = get_html(url)
-            get_data(html)
-        except:
-            print('Вы спарсили все страницы!')
-            break
-        
-with open('result.csv','w') as file:
-    writer = csv.writer(file)
-    writer.writerow(['title ','price ','img ','description '])
-    
-
-main()
+bot.polling()
